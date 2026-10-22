@@ -1,0 +1,1395 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>מפה אינטראקטיבית מדויקת - Korg Pa1000</title>
+  <style>
+    :root {
+      --bg-dark: #0a0c10;
+      --card-bg: #161b24;
+      --accent-red: #e63946;
+      --accent-blue: #38bdf8;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 18px 12px;
+      direction: rtl;
+    }
+
+    header {
+      text-align: center;
+      max-width: 1100px;
+      width: 100%;
+      margin-bottom: 16px;
+    }
+
+    header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 6px;
+    }
+
+    header h1 span {
+      color: var(--accent-red);
+    }
+
+    header p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-bottom: 16px;
+    }
+
+    /* בורר תצוגה נקי בלחיצה אחת מתחת לכותרת */
+    .view-switcher-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--card-bg);
+      padding: 6px;
+      border-radius: 12px;
+      border: 1px solid #2d3748;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+    }
+
+    .view-tab-btn {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid transparent;
+      padding: 9px 22px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .view-tab-btn:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .view-tab-btn.active {
+      background: linear-gradient(135deg, #e63946 0%, #b91c1c 100%);
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.2);
+      box-shadow: 0 4px 12px rgba(230, 57, 70, 0.4);
+    }
+
+    .workspace {
+      width: 100%;
+      max-width: 1360px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .keyboard-container {
+      position: relative;
+      display: inline-block;
+      width: 100%;
+      background: transparent;
+      user-select: none;
+    }
+
+    #pa1000-img {
+      display: block;
+      width: 100%;
+      height: auto;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    .hotspot-layer {
+      position: absolute;
+      inset: 0;
+    }
+
+    .hotspot {
+      position: absolute;
+      cursor: pointer;
+      border-radius: 3px;
+      border: 1px solid transparent;
+      background-color: transparent;
+      transition: background-color 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+    }
+
+    .hotspot.round {
+      border-radius: 50%;
+    }
+
+    .hotspot:hover,
+    .hotspot:focus-visible {
+      background-color: rgba(56, 189, 248, 0.32);
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.75);
+      z-index: 30;
+      outline: none;
+    }
+
+    .hotspot-tooltip {
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(10, 12, 16, 0.96);
+      color: #ffffff;
+      font-size: 0.76rem;
+      font-weight: 600;
+      padding: 4px 9px;
+      border-radius: 5px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.12s ease, visibility 0.12s ease;
+      border: 1px solid var(--accent-blue);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.75);
+      z-index: 40;
+    }
+
+    .hotspot:hover .hotspot-tooltip,
+    .hotspot:focus-visible .hotspot-tooltip {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    /* חלון פופ-אפ (Modal) */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(4px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s ease, visibility 0.2s ease;
+      direction: rtl;
+    }
+
+    .modal-overlay.open {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal-card {
+      background: var(--card-bg);
+      border: 1px solid #334155;
+      border-top: 4px solid var(--accent-red);
+      border-radius: 14px;
+      max-width: 540px;
+      width: 100%;
+      padding: 26px 24px 22px;
+      position: relative;
+      box-shadow: 0 22px 50px rgba(0, 0, 0, 0.75);
+      transform: translateY(10px) scale(0.97);
+      transition: transform 0.2s ease;
+      text-align: right;
+    }
+
+    .modal-overlay.open .modal-card {
+      transform: translateY(0) scale(1);
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #1e2634;
+      color: var(--text-main);
+      font-size: 1.15rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.18s ease;
+    }
+
+    .modal-close:hover {
+      background: var(--accent-red);
+      border-color: var(--accent-red);
+      color: #ffffff;
+    }
+
+    .modal-badge {
+      display: inline-block;
+      background: rgba(230, 57, 70, 0.16);
+      color: #ff8fa3;
+      border: 1px solid rgba(230, 57, 70, 0.35);
+      font-size: 0.76rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 20px;
+      margin-bottom: 10px;
+    }
+
+    .modal-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 12px;
+      padding-left: 36px;
+    }
+
+    .modal-description {
+      color: #cbd5e1;
+      font-size: 0.98rem;
+      line-height: 1.68;
+      margin-bottom: 16px;
+    }
+
+    .modal-tip-box {
+      background: rgba(56, 189, 248, 0.08);
+      border-right: 4px solid var(--accent-blue);
+      padding: 11px 14px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      color: #e2e8f0;
+      line-height: 1.55;
+    }
+
+    .modal-tip-box strong {
+      color: var(--accent-blue);
+      display: block;
+      margin-bottom: 3px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>מפה אינטראקטיבית מדויקת: <span>Korg Pa1000</span></h1>
+    <p id="subtitle-text">לחץ על כל כפתור בודד, פיידר, נוב או מסך על גבי האורגנית לקבלת הסבר מפורט בעברית</p>
+
+    <!-- בורר תצוגה בלחיצה אחת בלבד -->
+    <div class="view-switcher-bar" role="tablist" aria-label="בחירת תצוגת אורגנית">
+      <button type="button" id="btn-view-front" class="view-tab-btn active" role="tab" aria-selected="true">
+        🎹 פאנל קדמי ומקלדת
+      </button>
+      <button type="button" id="btn-view-rear" class="view-tab-btn" role="tab" aria-selected="false">
+        🔌 פאנל אחורי וחיבורים
+      </button>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <div class="keyboard-container">
+      <img
+        id="pa1000-img"
+        src="image_bdb8da.jpg"
+        alt="Korg Pa1000 Professional Arranger"
+      >
+      <div id="hotspot-layer" class="hotspot-layer"></div>
+    </div>
+  </main>
+
+  <div id="info-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-card">
+      <button type="button" id="modal-close-btn" class="modal-close" aria-label="סגור חלון">✕</button>
+      <span id="modal-badge" class="modal-badge"></span>
+      <h2 id="modal-title" class="modal-title"></h2>
+      <p id="modal-desc" class="modal-description"></p>
+      <div class="modal-tip-box">
+        <strong>💡 טיפ שימושי ב-Pa1000:</strong>
+        <span id="modal-tip"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const viewsConfig = {
+      front: {
+        primarySrc: 'image_bdb8da.jpg',
+        fallbackSrc: 'pa1000.jpg',
+        subtitle: 'לחץ על כל כפתור בודד, פיידר, נוב או מסך על גבי האורגנית לקבלת הסבר מפורט בעברית'
+      },
+      rear: {
+        primarySrc: 'image_6220a1.png',
+        fallbackSrc: 'pa1000-rear.png',
+        subtitle: 'לחץ על כל חיבור, יציאה, שקע או בורר בגב האורגנית לקבלת הסבר מפורט בעברית'
+      }
+    };
+
+    const frontButtonsData = [
+      {
+        name: 'תפס שחרור מסך (DISPLAY UNLOCK)',
+        category: 'מכניקה ותצוגה',
+        rect: [38.0, 17.5, 2.3, 4.2],
+        desc: 'תפס מכני המשחרר את נעילת מסך ה-TouchView ומאפשר להטות אותו כלפי מעלה לזווית צפייה אידיאלית בזמן נגינה בישיבה או בעמידה.',
+        tip: 'לסגירת המסך בסיום הנגינה, דחוף אותו בעדינות למטה עד שנשמע קליק נעילה (Push to Lock).'
+      },
+      {
+        name: 'מסך מגע 7 אינץ׳ (TouchView™ Capacitive Display)',
+        category: 'תצוגה ושליטה מרכזית',
+        rect: [41.2, 13.5, 16.5, 26.2],
+        desc: 'מסך מגע קפסיטיבי צבעוני בגודל 7 אינץ׳ המהווה את מרכז השליטה של האורגנית: בחירת מקצבים וצלילים, מיקסר, אפקטים, עריכת דגימות (Sampler), תווים ומילות שירים.',
+        tip: 'המסך ב-Pa1000 מגיב למגע קל ממש כמו מסך סמארטפון, כולל גרירת פיידרים במסך המיקסר.'
+      },
+      {
+        name: 'נוב ווליום ראשי (MASTER VOLUME)',
+        category: 'בקרת שמע',
+        rect: [26.0, 23.8, 1.6, 4.5],
+        round: true,
+        desc: 'שולט בעוצמת השמע הכללית של האורגנית ביציאות הראשיות (Audio Out), ברמקולים המובנים וביציאת האוזניות.',
+        tip: 'מומלץ לכוון אותו סביב 70%–80% בהופעה כדי לשמור על טווח נקי מעיוותים (Headroom).'
+      },
+      {
+        name: 'נוב איזון ליווי/סולו (BALANCE)',
+        category: 'בקרת שמע',
+        rect: [29.0, 23.8, 1.6, 4.5],
+        round: true,
+        desc: 'מאזן בזמן אמת בין עוצמת ערוצי הליווי האוטומטי והנגנים (Accompaniment/Song) לבין עוצמת צלילי הסולו של יד ימין (Keyboard).',
+        tip: 'פתרון מושלם באמצע הופעה כשצריך להגביר מיד את הסולו שלך בלי להיכנס למיקסר.'
+      },
+      {
+        name: 'נוב מתוכנת 1 (ASSIGNABLE KNOB 1)',
+        category: 'בקרים מתוכנתים',
+        rect: [26.0, 30.8, 1.6, 4.5],
+        round: true,
+        desc: 'כפתור סיבוב מתוכנת המאפשר לשלוט בזמן אמת בפרמטרים של הסאונד (כגון Filter Cutoff, עומק Reverb, או ווליום של ערוץ ספציפי).',
+        tip: 'לחיצה על שני כפתורי המצב שליד הנובים יחד מפעילה את מצב ההדגמה (DEMO).'
+      },
+      {
+        name: 'נוב מתוכנת 2 (ASSIGNABLE KNOB 2)',
+        category: 'בקרים מתוכנתים',
+        rect: [29.0, 30.8, 1.6, 4.5],
+        round: true,
+        desc: 'כפתור סיבוב מתוכנת שני לעיצוב צליל חי (כמו Resonance, מהירות אפקט Chorus/Delay או שליטה בפרמטרים של סינתיסייזר).',
+        tip: 'ניתן להגדיר את תפקיד שני הנובים בתפריט Global -> Controllers.'
+      },
+      {
+        name: 'כפתור מצב STYLE PLAY',
+        category: 'מצבי הפעלה (Mode)',
+        rect: [32.6, 31.5, 1.3, 3.2],
+        desc: 'מעביר את האורגנית למצב הנגינה הראשי עם מקצבים וליווי אוטומטי (Styles) בזמן אמת.',
+        tip: 'לחיצה על הכפתור כשאתה בתוך תפריט פנימי תחזיר אותך מיד לעמוד הראשי של Style Play.'
+      },
+      {
+        name: 'כפתור מצב SONG PLAY',
+        category: 'מצבי הפעלה (Mode)',
+        rect: [34.1, 31.5, 1.3, 3.2],
+        desc: 'מעביר את הכלי למצב ניגון קבצי MIDI (SMF), קריוקי ו-MP3 באמצעות הנגן הכפול (XDS Dual Player), תוך אפשרות לנגן עליהם בלייב.',
+        tip: 'ניתן לנגן ביד ימין מעל שיר MP3 או MIDI מתנגן ואפילו להשתמש באפקטים של הכלי.'
+      },
+      {
+        name: 'כפתור מצב SEQUENCER',
+        category: 'מצבי הפעלה (Mode)',
+        rect: [35.6, 31.5, 1.3, 3.2],
+        desc: 'פותח את תחנת ההקלטה הפנימית (16 ערוצים) ליצירה ועריכה של שירים מלאים או הקלטת פלייבקים בשיטת Backing Sequence.',
+        tip: 'במצב זה ניתן לערוך כל תו, ווליום ואירוע MIDI שהוקלטו בכל אחד מ-16 הערוצים.'
+      },
+      {
+        name: 'כפתור מצב SOUND',
+        category: 'מצבי הפעלה (Mode)',
+        rect: [37.1, 31.5, 1.3, 3.2],
+        desc: 'מעביר למצב עריכת צלילים מעמיקה (Sound Edit), עריכת מערכות תופים וכניסה למערכת הדגימה המובנית (Sampler / Time Slice).',
+        tip: 'לחץ על MENU בתוך מצב Sound כדי לערוך שכבות אוסילטורים (Oscillators), פילטרים ומעטפות.'
+      },
+      {
+        name: 'כפתור GLOBAL',
+        category: 'מערכת ומדיה',
+        rect: [35.6, 36.8, 1.3, 3.0],
+        desc: 'פותח את הגדרות המערכת הכלליות של ה-Pa1000: כיוון סולמות ורובעי טונים, רגישות קלידים, הגדרות MIDI, אקולייזר ראשי (Master EQ/Limiter) וכיול מסך.',
+        tip: 'ההגדרות ב-Global חלות על האורגנית כולה ולא משתנות כשמחליפים מקצב.'
+      },
+      {
+        name: 'כפתור MEDIA',
+        category: 'מערכת ומדיה',
+        rect: [37.1, 36.8, 1.3, 3.0],
+        desc: 'פותח את מנהל הקבצים והאחסון (Load, Save, Copy, Erase, Format, USB Connection) לטעינה וגיבוי של סטים (SET) מדיסק-און-קי או מהזיכרון הפנימי.',
+        tip: 'אפשר לטעון מקצב בודד או צליל בודד מתוך סט שלם על ידי פתיחת תיקיית ה-.SET בלשונית Load.'
+      },
+      {
+        name: 'קטגוריית מקצבים: POP / FAVORITE 1',
+        category: 'בחירת מקצבים (Style)',
+        rect: [25.5, 36.8, 1.25, 3.0],
+        desc: 'פותח את חלון בחירת המקצבים בקטגוריית Pop (או לשונית Favorite 1 של מקצבי המשתמש).',
+        tip: 'ניתן לשנות את שמות לשוניות ה-Favorite כך שיתאימו לסגנונות שלך (כמו פריילך, מזרחי, הורה וכו׳).'
+      },
+      {
+        name: 'קטגוריית מקצבים: BALLAD / FAVORITE 2',
+        category: 'בחירת מקצבים (Style)',
+        rect: [27.0, 36.8, 1.25, 3.0],
+        desc: 'פותח את חלון בחירת המקצבים בקטגוריית Ballad (בלדות ושירים שקטים) או לשונית Favorite 2.',
+        tip: 'לחיצה חוזרת מדפדפת בין העמודים השונים של אותה קטגוריה במסך.'
+      },
+      {
+        name: 'קטגוריית מקצבים: BALLROOM / FAVORITE 3',
+        category: 'בחירת מקצבים (Style)',
+        rect: [28.5, 36.8, 1.25, 3.0],
+        desc: 'פותח את חלון בחירת המקצבים בקטגוריית Ballroom (ואלס, טנגו, פוקסטרוט) או לשונית Favorite 3.',
+        tip: 'שימושי לגישה מהירה למקצבים במשקלים של 3/4 ו-6/8.'
+      },
+      {
+        name: 'קטגוריית מקצבים: DANCE / FAVORITE 4',
+        category: 'בחירת מקצבים (Style)',
+        rect: [30.0, 36.8, 1.25, 3.0],
+        desc: 'פותח את חלון בחירת המקצבים בקטגוריית Dance / EDM / Club או לשונית Favorite 4.',
+        tip: 'במקצבי דאנס מומלץ להשתמש בפדים (Pads) להוספת אפקטים וסינת׳ים קצביים.'
+      },
+      {
+        name: 'קטגוריית מקצבים: ROCK / FAVORITE 5',
+        category: 'בחירת מקצבים (Style)',
+        rect: [31.5, 36.8, 1.25, 3.0],
+        desc: 'פותח את חלון בחירת המקצבים בקטגוריית Rock או לשונית Favorite 5.',
+        tip: 'מקצבים אלו כוללים לרוב גיטרות חשמליות חיות הבנויות בטכנולוגיית Guitar Mode 2.'
+      },
+      {
+        name: 'קטגוריית מקצבים: COUNTRY / FAVORITE 6',
+        category: 'בחירת מקצבים (Style)',
+        rect: [33.0, 36.8, 1.3, 3.0],
+        desc: 'פותח את חלון בחירת המקצבים בקטגוריית Country או לשונית Favorite 6.',
+        tip: 'מעולה לשירים אקוסטיים ופריטות גיטרה קצביות.'
+      },
+      {
+        name: 'קטגוריית מקצבים: LATIN / USER 1',
+        category: 'בחירת מקצבים (Style)',
+        rect: [25.5, 42.5, 1.25, 3.0],
+        desc: 'פותח את קטגוריית מקצבי Latin (בוסה נובה, סמבה, סלסה, רומבה) או גישה לבנק User 1.',
+        tip: 'בנקי ה-User מכילים את המקצבים האישיים שנטענו מהסט שלך.'
+      },
+      {
+        name: 'קטגוריית מקצבים: LATIN DANCE / USER 2',
+        category: 'בחירת מקצבים (Style)',
+        rect: [27.0, 42.5, 1.25, 3.0],
+        desc: 'פותח את קטגוריית Latin Dance (רגאטון, פופ לטיני מודרני) או גישה לבנק User 2.',
+        tip: 'לחיצה על לשוניות User במסך מאפשרת גישה לכל תיקיות המקצבים בסט.'
+      },
+      {
+        name: 'קטגוריית מקצבים: JAZZ / USER 3',
+        category: 'בחירת מקצבים (Style)',
+        rect: [28.5, 42.5, 1.25, 3.0],
+        desc: 'פותח את קטגוריית Jazz (סווינג, ביג בנד, ג׳אז מודרני) או גישה לבנק User 3.',
+        tip: 'במקצבי ג׳אז מומלץ להפעיל את כפתור BASS INVERSION להיפוכי אקורדים חלקים.'
+      },
+      {
+        name: 'קטגוריית מקצבים: MOVIE & SHOW / DIRECT 1',
+        category: 'בחירת מקצבים (Style)',
+        rect: [30.0, 42.5, 1.25, 3.0],
+        desc: 'פותח מקצבים תזמורתיים וקולנועיים (Movie & Show) או גישה ישירה למקצבים מתוך דיסק-און-קי (Direct).',
+        tip: 'פונקציית Direct מאפשרת לנגן מקצבים ישירות מתיקיית SET חיצונית בלי לטעון אותה לזיכרון!'
+      },
+      {
+        name: 'קטגוריית מקצבים: FUNK & BLUES / DIRECT 2',
+        category: 'בחירת מקצבים (Style)',
+        rect: [31.5, 42.5, 1.25, 3.0],
+        desc: 'פותח את קטגוריית Funk, Soul & Blues או לשונית Direct 2.',
+        tip: 'מתאים מאוד לשילוב עם צלילי אורגן Hammond וכלי נשיפה.'
+      },
+      {
+        name: 'קטגוריית מקצבים: WORLD / DIRECT 3',
+        category: 'בחירת מקצבים (Style)',
+        rect: [33.0, 42.5, 1.3, 3.0],
+        desc: 'פותח את קטגוריית מקצבי העולם והמוזיקה האתנית/ים-תיכונית (World) או לשונית Direct 3.',
+        tip: 'כאן נמצאים מקצבי הבסיס האתניים והמזרחיים המובנים של קורג.'
+      },
+      {
+        name: 'כפתור MEMORY (זיכרון אקורד)',
+        category: 'ליווי ואקורדים (Left Hand)',
+        rect: [35.7, 42.5, 1.1, 3.0],
+        desc: 'שומר את האקורד וערוצי הליווי מתנגנים גם לאחר שאתה מרים את אצבעות יד שמאל מהמקלדת.',
+        tip: 'כאשר הכפתור כבוי, הליווי ינגן רק כל עוד אתה מחזיק פיזית את האקורד על הקלידים.'
+      },
+      {
+        name: 'כפתור BASS INVERSION (היפוך בס)',
+        category: 'ליווי ואקורדים (Left Hand)',
+        rect: [37.1, 42.5, 1.1, 3.0],
+        desc: 'כאשר הוא פעיל, התו הנמוך ביותר שתנגן ביד שמאל יהפוך לתו הבס של הליווי (למשל ביצוע אקורד C/E או Am/G).',
+        tip: 'חיוני לנגינת בלדות פסנתר ומהלכי בס יורדים (Walkdown Bass).'
+      },
+      {
+        name: 'כפתור MANUAL BASS (בס ידני)',
+        category: 'ליווי ואקורדים (Left Hand)',
+        rect: [38.5, 42.5, 1.1, 3.0],
+        desc: 'מפסיק את ערוצי הליווי האוטומטיים (מלבד התופים) ומאפשר לך לנגן תפקידי בס באופן ידני ביד שמאל.',
+        tip: 'נהדר ליצירת בית ראשון שקט עם תופים ובס חי שאתה מנגן בעצמך.'
+      },
+      {
+        name: 'כפתור RECORD (הקלטה)',
+        category: 'הקלטה ועריכה',
+        rect: [42.0, 42.5, 1.2, 3.0],
+        desc: 'פותח את תפריט ההקלטה בהתאם למצב הפעיל: יצירת או עריכת מקצב (Style Record), הקלטת Pad, הקלטת שיר MIDI או הקלטת אודיו MP3.',
+        tip: 'קיצור דרך: החזק SHIFT ולחץ על RECORD כדי לפתוח מיד הקלטת MP3 של כל מה שאתה מנגן ושר!'
+      },
+      {
+        name: 'כפתור TRACK SELECT (בחירת ערוצים)',
+        category: 'מיקסר וערוצים',
+        rect: [43.6, 42.5, 1.2, 3.0],
+        desc: 'מחליף את התצוגה במסך בין 4 ערוצי המקלדת (Upper 1–3, Lower) לבין 8 ערוצי הליווי של המקצב (Drums, Perc, Bass, Acc 1–5).',
+        tip: 'מאפשר להשתיק (Mute) או לשנות ווליום לערוץ תופים או גיטרה בתוך המקצב תוך שנייה.'
+      },
+      {
+        name: 'כפתור KEYBOARD SET 1 (STS 1)',
+        category: 'צלילי יד ימין (Keyboard Sets)',
+        rect: [46.1, 42.5, 1.25, 3.0],
+        desc: 'טוען מיד את הגדרת הצליל הראשונה (STS 1) המשויכת למקצב הנוכחי – לרוב צליל רגוע או אקוסטי המתאים לפתיחה ולבית ראשון.',
+        tip: 'לחיצה ארוכה על הכפתור תפתח מיד את חלון שמירת הצליל הנוכחי שלך על כפתור 1.'
+      },
+      {
+        name: 'כפתור KEYBOARD SET 2 (STS 2)',
+        category: 'צלילי יד ימין (Keyboard Sets)',
+        rect: [47.8, 42.5, 1.25, 3.0],
+        desc: 'טוען מיד את הגדרת הצליל השנייה (STS 2) של המקצב הנוכחי עבור יד ימין.',
+        tip: 'כל כפתור Keyboard Set שומר עד 3 צלילים משולבים (Upper 1+2+3), אפקטים ומצב כיוון מזרחי.'
+      },
+      {
+        name: 'כפתור KEYBOARD SET 3 (STS 3)',
+        category: 'צלילי יד ימין (Keyboard Sets)',
+        rect: [49.6, 42.5, 1.25, 3.0],
+        desc: 'טוען מיד את הגדרת הצליל השלישית (STS 3) של המקצב הנוכחי עבור יד ימין.',
+        tip: 'ניתן להגדיר שהמעבר ל-Variation 3 יעביר אוטומטית גם ל-Keyboard Set 3 באמצעות כפתור Style to KBD Set.'
+      },
+      {
+        name: 'כפתור KEYBOARD SET 4 (STS 4)',
+        category: 'צלילי יד ימין (Keyboard Sets)',
+        rect: [51.4, 42.5, 1.25, 3.0],
+        desc: 'טוען מיד את הגדרת הצליל הרביעית (STS 4) של המקצב הנוכחי – לרוב צליל מוביל חזק או שילוב עשיר לפזמון וסולו שיא.',
+        tip: 'הנורית שמעל הכפתור מראה איזה מבין 4 ה-Keyboard Sets פעיל כרגע.'
+      },
+      {
+        name: 'כפתור SEARCH (חיפוש)',
+        category: 'ניווט ומערכת',
+        rect: [54.0, 42.5, 1.1, 3.0],
+        desc: 'פותח חלון חיפוש חכם עם מקלדת וירטואלית לאיתור מהיר של מקצבים, צלילים, שירים ב-SongBook או קבצים לפי שם.',
+        tip: 'חוסך דפדוף ארוך כשמחפשים מקצב או צליל ספציפי בתוך סט גדול.'
+      },
+      {
+        name: 'כפתור SHIFT (פונקציות משניות)',
+        category: 'ניווט וקיצורי דרך',
+        rect: [55.5, 42.5, 1.2, 3.0],
+        desc: 'כאשר מחזיקים אותו לחוץ ולוחצים על כפתורים אחרים בפאנל או במסך, הוא מפעיל קיצורי דרך ופונקציות עריכה מהירות.',
+        tip: 'למשל: SHIFT + לחיצה על כפתור Upper במסך תפתח ישירות את עמוד בחירת הצליל או הטרנספוזיציה שלו.'
+      },
+      {
+        name: 'כפתור CHORD SEQUENCER (לופ אקורדים)',
+        category: 'עזרי הופעה חיה',
+        rect: [25.5, 47.4, 1.35, 3.1],
+        desc: 'מאפשר להקליט רצף אקורדים בזמן אמת (Record) ולהפעיל אותו בלופ אוטומטי (Play), כך שיד שמאל שלך מתפנה לחלוטין.',
+        tip: 'מעולה לפזמונים חוזרים שבהם אתה רוצה לנגן בשתי ידיים או לתפעל אפקטים וג׳ויסטיק.'
+      },
+      {
+        name: 'כפתור STYLE TO KBD SET',
+        category: 'עזרי הופעה חיה',
+        rect: [28.1, 47.4, 1.15, 3.1],
+        desc: 'מקשר בין וריאציות המקצב (1–4) לבין צלילי ה-Keyboard Set (1–4), כך שהחלפת וריאציה תחליף עבורך אוטומטית גם את הצליל ביד ימין.',
+        tip: 'לחיצה אחת מדליקה מצב בחירה ראשונית, לחיצה שנייה (נורית מהבהבת) מחליפה צליל בכל מעבר וריאציה.'
+      },
+      {
+        name: 'כפתור PAD 1',
+        category: 'פדים ולופים (Pads)',
+        rect: [30.6, 47.4, 1.25, 3.1],
+        desc: 'מפעיל את פד מספר 1 המשויך למקצב או ל-SongBook (למשל לופ כלי הקשה, דרבוקה, שייקר או אפקט קולי).',
+        tip: 'הפדים מסתנכרנים אוטומטית למהירות (BPM) ולאקורדים של המקצב המתנגן.'
+      },
+      {
+        name: 'כפתור PAD 2',
+        category: 'פדים ולופים (Pads)',
+        rect: [32.1, 47.4, 1.25, 3.1],
+        desc: 'מפעיל את פד מספר 2 המשויך למקצב הנוכחי (למשל ליווי גיטרה נוסף, ארפג׳יו או קצב משלים).',
+        tip: 'ניתן להפעיל את כל ארבעת הפדים (1–4) בו-זמנית להעשרת המקצב!'
+      },
+      {
+        name: 'כפתור PAD 3',
+        category: 'פדים ולופים (Pads)',
+        rect: [33.6, 47.4, 1.25, 3.1],
+        desc: 'מפעיל את פד מספר 3 המשויך למקצב הנוכחי.',
+        tip: 'החזקת SHIFT ולחיצה על אחד הפדים פותחת מיד את חלון בחירת הפד להחלפה מהירה.'
+      },
+      {
+        name: 'כפתור PAD 4',
+        category: 'פדים ולופים (Pads)',
+        rect: [35.1, 47.4, 1.25, 3.1],
+        desc: 'מפעיל את פד מספר 4 המשויך למקצב הנוכחי.',
+        tip: 'ניתן להקליט פדים מותאמים אישית דרך כפתור RECORD -> Pad Record.'
+      },
+      {
+        name: 'כפתור PAD STOP (עצירת פדים)',
+        category: 'פדים ולופים (Pads)',
+        rect: [36.8, 47.4, 1.0, 3.1],
+        desc: 'עוצר מיד את כל הפדים המתנגנים כרגע בלופ, מבלי לעצור את המקצב הראשי.',
+        tip: 'אם תרצה לעצור רק פד אחד ספציפי מתוך כמה שפועלים, החזק STOP ולחץ על הפד הרצוי.'
+      },
+      {
+        name: 'נגן 1: כפתור SELECT (בחירת Player 1)',
+        category: 'נגן כפול (Player 1)',
+        rect: [39.4, 47.4, 1.0, 3.1],
+        desc: 'בוחר את נגן מספר 1 (Player 1) לצורך טעינת שיר MIDI או MP3 או להצגת המילים והתווים שלו על המסך.',
+        tip: 'שימושי במצב Song Play כשרוצים להכין שיר חדש בנגן 1 בזמן שנגן 2 מנגן.'
+      },
+      {
+        name: 'נגן 1: הרצה אחורה (<< REW)',
+        category: 'נגן כפול (Player 1)',
+        rect: [40.7, 47.4, 1.2, 3.1],
+        desc: 'מריץ אחורה בתיבות (ב-MIDI) או בשניות (ב-MP3) את השיר שנטען ל-Player 1.',
+        tip: 'לחיצה קצרה מחזירה תיבה אחת אחורה, החזקה מריצה ברצף.'
+      },
+      {
+        name: 'נגן 1: הרצה קדימה (>> FF)',
+        category: 'נגן כפול (Player 1)',
+        rect: [42.2, 47.4, 1.2, 3.1],
+        desc: 'מריץ קדימה את השיר המתנגן ב-Player 1.',
+        tip: 'מאפשר לדלג מהר לפזמון או לחלק ספציפי בפלייבק.'
+      },
+      {
+        name: 'נגן 1: חזרה להתחלה (|< HOME)',
+        category: 'נגן כפול (Player 1)',
+        rect: [43.7, 47.4, 1.2, 3.1],
+        desc: 'מחזיר מיד את השיר ב-Player 1 לתיבה הראשונה (תחילת השיר).',
+        tip: 'שימושי לאיפוס מהיר של הפלייבק לפני תחילת ביצוע.'
+      },
+      {
+        name: 'נגן 1: ניגון / עצירה (PLAY/STOP - Player 1)',
+        category: 'נגן כפול (Player 1)',
+        rect: [45.2, 47.4, 1.25, 3.1],
+        desc: 'מפעיל או עוצר את השיר הטעון ב-Player 1.',
+        tip: 'לחיצה על שני כפתורי ה-PLAY (של Player 1 ושל Player 2) יחד מפעילה את שני הנגנים בסנכרון מושלם!'
+      },
+      {
+        name: 'פיידר מיקס אופקי (X-FADER)',
+        category: 'נגן כפול ובקרת מיקס',
+        rect: [47.4, 46.8, 3.9, 4.0],
+        desc: 'פיידר הצלבה המאפשר מעבר הדרגתי וחלק (Crossfade) בין Player 1 (צד שמאל) לבין Player 2 (צד ימין) ללא הפסקת מוזיקה.',
+        tip: 'במצב Style Play ניתן להגדיר שה-X-Fader ישלוט באיזון בין המקצב לבין יד ימין או המיקרופון.'
+      },
+      {
+        name: 'נגן 2: כפתור SELECT (בחירת Player 2)',
+        category: 'נגן כפול (Player 2)',
+        rect: [52.3, 47.4, 1.0, 3.1],
+        desc: 'בוחר את נגן מספר 2 (Player 2) לטעינת שיר MIDI/MP3 או להצגת מילות השיר שלו במסך.',
+        tip: 'מאפשר להכין מראש את השיר הבא בהופעה בזמן ש-Player 1 עדיין מנגן.'
+      },
+      {
+        name: 'נגן 2: הרצה אחורה (<< REW)',
+        category: 'נגן כפול (Player 2)',
+        rect: [53.5, 47.4, 1.25, 3.1],
+        desc: 'מריץ אחורה את השיר הטעון ב-Player 2.',
+        tip: 'עובד באופן עצמאי לחלוטין מנגן מספר 1.'
+      },
+      {
+        name: 'נגן 2: הרצה קדימה (>> FF)',
+        category: 'נגן כפול (Player 2)',
+        rect: [55.1, 47.4, 1.2, 3.1],
+        desc: 'מריץ קדימה את השיר הטעון ב-Player 2.',
+        tip: 'לחיצה קצרה מקדמת תיבה אחת בקובצי MIDI.'
+      },
+      {
+        name: 'נגן 2: חזרה להתחלה (|< HOME)',
+        category: 'נגן כפול (Player 2)',
+        rect: [56.6, 47.4, 1.2, 3.1],
+        desc: 'מחזיר את השיר ב-Player 2 לתחילתו (תיבה 1).',
+        tip: 'מוודא שהשיר השני מוכן לכניסה מיד כשתעביר את ה-X-Fader ימינה.'
+      },
+      {
+        name: 'נגן 2: ניגון / עצירה (PLAY/STOP - Player 2)',
+        category: 'נגן כפול (Player 2)',
+        rect: [58.1, 47.4, 1.25, 3.1],
+        desc: 'מפעיל או עוצר את השיר הטעון ב-Player 2.',
+        tip: 'הנורית שעל הכפתור מאירה כאשר השיר מתנגן.'
+      },
+      {
+        name: 'כפתור SPLIT (פיצול מקלדת)',
+        category: 'פיצול מקלדת והרמוניה',
+        rect: [60.2, 47.4, 1.1, 3.1],
+        desc: 'כאשר הוא דולק, המקלדת מפוצלת לליווי וצליל Lower ביד שמאל, ולצלילי Upper 1–3 ביד ימין. כאשר הוא כבוי, צלילי Upper פרוסים על כל 61 הקלידים (מצב פסנתר מלא).',
+        tip: 'החזקת SPLIT ולחיצה על קליד כלשהו במקלדת קובעת מיד את נקודת הפיצול (Split Point) באותו קליד!'
+      },
+      {
+        name: 'כפתור CHORD SCAN: LOWER',
+        category: 'זיהוי אקורדים',
+        rect: [62.1, 47.4, 1.1, 3.1],
+        desc: 'מגדיר שזיהוי האקורדים של הליווי האוטומטי יתבצע אך ורק בחלק השמאלי של המקלדת (מתחת לנקודת ה-Split).',
+        tip: 'זהו המצב הסטנדרטי והנפוץ ביותר לנגינת מקצבים (שמאל = אקורדים, ימין = סולו).'
+      },
+      {
+        name: 'כפתור CHORD SCAN: UPPER',
+        category: 'זיהוי אקורדים',
+        rect: [63.5, 47.4, 1.1, 3.1],
+        desc: 'מגדיר שזיהוי האקורדים יתבצע לפי הקלידים שאתה מנגן בחלק הימני של המקלדת (או על פני כל המקלדת כששני הכפתורים דולקים יחד - Full).',
+        tip: 'כשמדליקים את LOWER ו-UPPER יחד (מצב Full), אפשר לנגן כפסנתרן בשתי ידיים והאורגנית תזהה את האקורדים מכל המקלדת!'
+      },
+      {
+        name: 'כפתור ENSEMBLE (הרמוניה אוטומטית ליד ימין)',
+        category: 'פיצול מקלדת והרמוניה',
+        rect: [65.3, 47.4, 1.1, 3.1],
+        desc: 'מוסיף קולות הרמוניים אוטומטיים למנגינה שאתה מנגן ביד ימין (דואט, שלישיית בראס, אקורד סגור, אוקטבה או טרמולו) בהתאם לאקורד המוחזק ביד שמאל.',
+        tip: 'החזק SHIFT ולחץ על ENSEMBLE כדי לבחור את סוג ההרמוניה (Duet, Brass, Trill וכו׳).'
+      },
+      {
+        name: 'כפתור UPPER OCTAVE - (הורדת אוקטבה)',
+        category: 'אוקטבה וטרנספוזיציה',
+        rect: [67.1, 47.4, 1.0, 3.1],
+        desc: 'מוריד את גובה הצלילים של יד ימין (Upper 1–3) באוקטבה אחת למטה.',
+        tip: 'לחיצה על שני כפתורי ה-OCTAVE (- ו-+) יחד מאפסת מיד את האוקטבה למצב 0.'
+      },
+      {
+        name: 'כפתור UPPER OCTAVE + (העלאת אוקטבה)',
+        category: 'אוקטבה וטרנספוזיציה',
+        rect: [68.5, 47.4, 1.0, 3.1],
+        desc: 'מעלה את גובה הצלילים של יד ימין (Upper 1–3) באוקטבה אחת למעלה.',
+        tip: 'שימושי במיוחד כשמנגנים צליל כינור או חליל ורוצים להגיע לתווים גבוהים בלי לצאת מגבולות המקלדת.'
+      },
+      {
+        name: 'כפתור TRANSPOSE b (הורדת חצי טון)',
+        category: 'אוקטבה וטרנספוזיציה',
+        rect: [70.2, 47.4, 1.1, 3.1],
+        desc: 'מוריד את הסולם הכללי של האורגנית (והליווי/השיר) בחצי טון למטה בכל לחיצה.',
+        tip: 'לחיצה על שני כפתורי ה-TRANSPOSE (b ו-#) בו-זמנית מאפסת מיד את הטרנספוזיציה ל-0!'
+      },
+      {
+        name: 'כפתור TRANSPOSE # (העלאת חצי טון)',
+        category: 'אוקטבה וטרנספוזיציה',
+        rect: [71.6, 47.4, 1.1, 3.1],
+        desc: 'מעלה את הסולם הכללי של האורגנית בחצי טון למעלה בכל לחיצה.',
+        tip: 'בפינה העליונה של המסך תמיד מוצג ערך הטרנספוזיציה הנוכחי כדי שלא תשכח לאפס בין שירים.'
+      },
+      {
+        name: 'כפתור INTRO 1 (פתיחה 1)',
+        category: 'שליטה במקצבים (Style Controls)',
+        rect: [25.6, 52.3, 1.25, 3.5],
+        desc: 'מפעיל פתיחה מלאה ועשירה למקצב הכוללת מהלך אקורדים ומנגינת פתיחה מתוכנתת מראש.',
+        tip: 'בזמן שהפתיחה מתנגנת, מעבר שלה יוביל אוטומטית לווריאציה שנבחרה.'
+      },
+      {
+        name: 'כפתור INTRO 2 (פתיחה 2)',
+        category: 'שליטה במקצבים (Style Controls)',
+        rect: [27.2, 52.3, 1.25, 3.5],
+        desc: 'מפעיל פתיחה קצבית המבוססת על האקורד שאתה מנגן ומחזיק בעצמך ביד שמאל.',
+        tip: 'שימושי כשרוצים פתיחה שבה אתה שולט בעצמך במהלכי האקורדים.'
+      },
+      {
+        name: 'כפתור INTRO 3 / COUNT IN (פתיחה קצרה / ספירה)',
+        category: 'שליטה במקצבים (Style Controls)',
+        rect: [28.8, 52.3, 1.25, 3.5],
+        desc: 'מפעיל תיבה אחת של ספירת כניסה (Count In של נקישות תופים) או פתיחה קצרה של תיבה אחת לכניסה מידית לשיר.',
+        tip: 'הבחירה המועדפת כשמתחילים שיר ישירות בשירה ללא פתיחה אינסטרומנטלית.'
+      },
+      {
+        name: 'כפתור VARIATION 1 (וריאציה 1)',
+        category: 'שליטה במקצבים (Style Controls)',
+        rect: [30.6, 52.3, 1.25, 3.5],
+        desc: 'מפעיל את הווריאציה הראשונה והשקטה ביותר של המקצב – מיועדת לרוב לבית ראשון ולחלקים רגועים.',
+        tip: 'לחיצה נוספת על VARIATION 1 בזמן שהוא כבר פעיל תפעיל מיד מעבר תופים (Fill 1).'
+      },
+      {
+        name: 'כפתור VARIATION 2 (וריאציה 2)',
+        category: 'שליטה במקצבים (Style Controls)',
+        rect: [32.2, 52.3, 1.25, 3.5],
+        desc: 'מפעיל את הווריאציה השנייה של המקצב – מוסיפה כלים וקצב לבית שני או גשר (Pre-Chorus).',
+        tip: 'לחיצה כפולה מהירה על כפתור הווריאציה תכניס את ה-Fill בלופ עד שתשחרר אותו.'
+      },
+      {
+        name: 'כפתור VARIATION 3 (וריאציה 3)',
+        category: 'שליטה במקצבים (Style Controls)',
+        rect: [33.8, 52.3, 1.25, 3.5],
+        desc: 'מפעיל את הווריאציה השלישית של המקצב – עיבוד מלא ודינמי המתאים לפזמון.',
+        tip: 'כאשר AUTO FILL דולק, המעבר לווריאציה 3 ילווה אוטומטית במעבר תופים מתאים.'
+      },
+      {
+        name: 'כפתור VARIATION 4 (וריאציה 4)',
+        category: 'שליטה במקצבים (Style Controls)',
+        rect: [35.4, 52.3, 1.25, 3.5],
+        desc: 'מפעיל את הווריאציה הרביעית והעוצמתית ביותר של המקצב – מיועדת לפזמון שיא, ריקודים וסולואים.',
+        tip: 'לחיצה חוזרת על VARIATION 4 בזמן נגינה תבצע מעבר תופים אנרגטי (Fill 4).'
+      },
+      {
+        name: 'כפתור AUTO FILL (מעבר תופים אוטומטי)',
+        category: 'שליטה במקצבים (Style Controls)',
+        rect: [37.3, 52.3, 1.0, 3.5],
+        desc: 'כאשר נורית הכפתור דלוקה, בכל פעם שתעבור מווריאציה אחת לאחרת האורגנית תבצע אוטומטית מעבר תופים (Fill-In) חלק.',
+        tip: 'מומלץ להשאיר דולק ברוב ההופעות לקבלת מעברים טבעיים בין בית לפזמון.'
+      },
+      {
+        name: 'כפתור BREAK (עצירה של תיבה)',
+        category: 'שליטה במקצבים (Style Controls)',
+        rect: [39.0, 52.3, 1.25, 3.5],
+        desc: 'מבצע הפסקה דרמטית (Break) של תיבה אחת בליווי ליצירת מתח לפני כניסה לפזמון או מעבר חגיגי.',
+        tip: 'לחיצה כפולה על BREAK תגרום לו להבהב ולהישאר במצב עצירה מתמשך עד שתלחץ על וריאציה.'
+      },
+      {
+        name: 'כפתור ENDING 1 (סיומת 1)',
+        category: 'שליטה במקצבים (Style Controls)',
+        rect: [40.8, 52.3, 1.25, 3.5],
+        desc: 'מנגן סיומת מלודית מלאה (כולל מהלך אקורדים מובנה והאטה במידת הצורך) ועוצר את המקצב בסיומה.',
+        tip: 'אם תלחץ על ENDING 1 בזמן שהמקצב כבוי, הוא ישמש כפתיחה נוספת!'
+      },
+      {
+        name: 'כפתור ENDING 2 (סיומת 2)',
+        category: 'שליטה במקצבים (Style Controls)',
+        rect: [42.4, 52.3, 1.25, 3.5],
+        desc: 'מנגן סיומת המבוססת על האקורד שאתה מחזיק ביד שמאל ועוצר את המקצב.',
+        tip: 'מאפשר לך לשלוט באקורד הסיום המדויק של השיר.'
+      },
+      {
+        name: 'כפתור ENDING 3 (סיומת 3 - קצרה)',
+        category: 'שליטה במקצבים (Style Controls)',
+        rect: [44.0, 52.3, 1.25, 3.5],
+        desc: 'מבצע סיום מהיר וחד (מכה אחרונה של תיבה אחת או שתיים) ועוצר מיד את המקצב.',
+        tip: 'מעולה לסיום מיידי של מחרוזת או שיר קצבי בלי להמתין לסיומת ארוכה.'
+      },
+      {
+        name: 'כפתור SYNCHRO START (הפעלה מסונכרנת)',
+        category: 'בקרת הפעלה (Transport)',
+        rect: [45.8, 52.3, 0.95, 3.5],
+        desc: 'מכניס את המקצב למצב המתנה: ברגע שתניח את האצבעות על אקורד ביד שמאל, המקצב יתחיל לנגן מיד ובזמן מדויק.',
+        tip: 'ניתן לשלב עם כפתורי ה-Intro כך שהפתיחה תתחיל ברגע שתלחץ על הקלידים.'
+      },
+      {
+        name: 'כפתור SYNCHRO STOP (עצירה מסונכרנת)',
+        category: 'בקרת הפעלה (Transport)',
+        rect: [47.3, 52.3, 0.95, 3.5],
+        desc: 'כאשר הוא פעיל, הרמת האצבעות מהקלידים ביד שמאל תעצור מיד את המקצב, ולחיצה חדשה תפעיל אותו מחדש מתחילת התיבה.',
+        tip: 'שימושי מאוד ליצירת עצירות קצביות חדות (Stops) בתחילת שיר או במחרוזות.'
+      },
+      {
+        name: 'כפתור START / STOP (הפעלה ועצירה ראשית)',
+        category: 'בקרת הפעלה (Transport)',
+        rect: [48.7, 52.1, 1.5, 3.8],
+        desc: 'הכפתור האדום הראשי להפעלה או עצירה מידית של המקצב וליווי התופים.',
+        tip: 'אם המקצב לא מסונכרן עם זמר באמצע שיר, לחץ על TAP/RESET שלצידו כדי לאפס את הפעמה הראשונה.'
+      },
+      {
+        name: 'כפתור RESET / TAP TEMPO',
+        category: 'בקרת הפעלה וקצב',
+        rect: [50.6, 52.3, 0.95, 3.5],
+        desc: 'כאשר המקצב עומד – תיפוף קצבי על הכפתור קובע את המהירות (BPM) ומפעיל את המקצב. כאשר המקצב כבר מנגן – לחיצה אחת מחזירה אותו מיד לפעמה הראשונה של התיבה (Reset)!',
+        tip: 'פונקציית ה-Reset היא כלי חובה לליווי זמרים שלעיתים מאריכים או מקצרים תיבה בשירה חיה.'
+      },
+      {
+        name: 'כפתור FADE IN / OUT (כניסה ויציאה הדרגתית)',
+        category: 'בקרת הפעלה (Transport)',
+        rect: [52.1, 52.3, 0.95, 3.5],
+        desc: 'לחיצה לפני נגינה תכניס את המקצב בעלייה הדרגתית של הווליום (Fade In). לחיצה בזמן נגינה תנמיך את המקצב בהדרגה עד לעצירה מוחלטת (Fade Out).',
+        tip: 'דרך אלגנטית לסיים שיר שקט בלי עצירה פתאומית.'
+      },
+      {
+        name: 'כפתור MY SETTING (הגדרת הבית שלי)',
+        category: 'ניהול הופעה ורפרטואר',
+        rect: [53.6, 52.3, 1.2, 3.5],
+        desc: 'טוען בלחיצה אחת את הגדרת המועדפים האישית שלך (צליל פסנתר או סולו מועדף, מקצב ברירת מחדל ואפקטים).',
+        tip: 'החזק את MY SETTING לחוץ למשך שנייה כדי לשמור את המצב הנוכחי כמצב שייפתח אוטומטית בהדלקת האורגנית!'
+      },
+      {
+        name: 'כפתור SONGBOOK (ספר השירים)',
+        category: 'ניהול הופעה ורפרטואר',
+        rect: [55.3, 52.3, 1.2, 3.5],
+        desc: 'פותח את מאגר ה-SongBook השומר עבור כל שיר את המקצב שלו (או קובץ ה-MIDI/MP3), הטמפו, הסולם, 4 צלילי ה-Keyboard Set וטקסט המילים.',
+        tip: 'מאפשר לארגן רפרטואר של מאות שירים מוכנים להופעה בלחיצת כפתור.'
+      },
+      {
+        name: 'כפתור SET LIST (רשימת הופעה באריחים)',
+        category: 'ניהול הופעה ורפרטואר',
+        rect: [57.0, 52.3, 1.25, 3.5],
+        desc: 'מציג על המסך לוח כפתורים גדולים וברורים (Tiles) של השירים שהגדרת ב-SongBook, לבחירה מהירה ונוחה בזמן אירוע.',
+        tip: 'ניתן לארגן רשימות Set List נפרדות לכל סוג אירוע (חופה, ריקודים, קבלת פנים וכו׳).'
+      },
+      {
+        name: 'כפתור צלילים 1: PIANO & EP',
+        category: 'ספריית צלילים (Keyboard Set / Sound)',
+        rect: [58.8, 52.3, 1.25, 3.5],
+        desc: 'פותח את קטגוריית צלילי הפסנתרים האקוסטיים והפסנתרים החשמליים (Grand Piano, Rhodes, Wurlitzer, DX EP).',
+        tip: 'כולל גישה מהירה לצליל הפסנתר הראשי Concert Grand של ה-Pa1000.'
+      },
+      {
+        name: 'כפתור צלילים 2: ORGAN',
+        category: 'ספריית צלילים (Keyboard Set / Sound)',
+        rect: [60.5, 52.3, 1.2, 3.5],
+        desc: 'פותח את קטגוריית צלילי האורגנים (Tonewheel Drawbar Organs, Jazz Organ, Rock Organ, Church Organ).',
+        tip: 'בצלילי אורגן ניתן לשלוט במהירות רמקול ה-Rotary (Slow/Fast) באמצעות הג׳ויסטיק או כפתור Assignable Switch.'
+      },
+      {
+        name: 'כפתור צלילים 3: GUITAR',
+        category: 'ספריית צלילים (Keyboard Set / Sound)',
+        rect: [62.1, 52.3, 1.2, 3.5],
+        desc: 'פותח את קטגוריית הגיטרות האקוסטיות, הקלאסיות (Nylon), גיטרות הג׳אז והגיטרות החשמליות (Clean / Overdrive / Distortion).',
+        tip: 'השתמש בכפתורי ה-Assignable Switches להפקת החלקות (Slides) והרמוניקס טבעיים של גיטרה.'
+      },
+      {
+        name: 'כפתור צלילים 4: STRINGS',
+        category: 'ספריית צלילים (Keyboard Set / Sound)',
+        rect: [63.6, 52.3, 1.25, 3.5],
+        desc: 'פותח את קטגוריית כלי הקשת, תזמורות הכינורות (Ensemble Strings), כינור סולו, צ׳לו ומקהלות (Vocal/Choir).',
+        tip: 'מעולה לשילוב בשכבה שנייה (Upper 2) מתחת לפסנתר או צליל סולו.'
+      },
+      {
+        name: 'כפתור צלילים 5: BRASS',
+        category: 'ספריית צלילים (Keyboard Set / Sound)',
+        rect: [65.3, 52.3, 1.2, 3.5],
+        desc: 'פותח את קטגוריית כלי הנשיפה ממתכת: חצוצרות, טרומבונים, קרן יער וסקציות בראס שלמות להקפצת ריקודים.',
+        tip: 'לחיצה חזקה על הקלידים (Velocity) מפעילה בצלילי DNC אפקט Fall או Sforzando אמיתי של חצוצרה.'
+      },
+      {
+        name: 'כפתור צלילים 6: SAX & WOODWIND',
+        category: 'ספריית צלילים (Keyboard Set / Sound)',
+        rect: [66.8, 52.3, 1.2, 3.5],
+        desc: 'פותח את קטגוריית הסקסופונים (אלט, טנור, סופרן), קלרינטים, חלילי צד, אבוב וכלי נשיפה מעץ.',
+        tip: 'מעולה לסולואים של קלרינט חסידי או סקסופון עם נשיפות טבעיות.'
+      },
+      {
+        name: 'כפתור צלילים 7: SYNTH & PAD',
+        category: 'ספריית צלילים (Keyboard Set / Sound)',
+        rect: [68.4, 52.3, 1.2, 3.5],
+        desc: 'פותח את קטגוריית הסינתיסייזרים המובילים (Synth Leads), הפדים האווריריים (Warm Pads) וצלילי הדאנס האלקטרוניים.',
+        tip: 'ניתן לערוך בזמן אמת את ה-Cutoff וה-Resonance שלהם באמצעות שני הנובים המתוכנתים משמאל.'
+      },
+      {
+        name: 'כפתור צלילים 8: ACCORDION & BASS',
+        category: 'ספריית צלילים (Keyboard Set / Sound)',
+        rect: [70.0, 52.3, 1.25, 3.5],
+        desc: 'פותח את קטגוריית האקורדיונים (צרפתי, איטלקי, בלקני), מפוחיות וצלילי בס אקוסטיים/חשמליים/סינת׳.',
+        tip: 'צלילי האקורדיון ב-Pa1000 מדמים גם את תגובת המפוח בהתאם לעוצמת הנגינה.'
+      },
+      {
+        name: 'כפתור צלילים 9: ETHNIC / USER / DIRECT',
+        category: 'ספריית צלילים (Keyboard Set / Sound)',
+        rect: [71.5, 52.3, 1.3, 3.5],
+        desc: 'פותח את קטגוריית הכלים האתניים והמזרחיים (עוד, קאנון, בוזוקי, בגלמה, ניי, זורנה) ואת בנקי ה-User שבהם נמצאים דגימות וצלילי הסט שלך.',
+        tip: 'זהו הכפתור המרכזי לגישה מהירה לכל צלילי הסולו והדגימות של הסט שלך!'
+      },
+      {
+        name: 'חריץ כניסת USB קדמי (USB HOST)',
+        category: 'חיבורים ואחסון',
+        rect: [61.2, 16.5, 3.2, 9.5],
+        desc: 'כניסת USB 2.0 קדמית לחיבור דיסק-און-קי לטעינת סטים (SET), שמירת גיבויים, השמעת קובצי MP3/MIDI והקלטת הופעות.',
+        tip: 'תומך בדיסק-און-קי בפורמט FAT32 – מומלץ תמיד להחזיק עליו גיבוי מלא של הסט האישי שלך.'
+      },
+      {
+        name: 'כפתור LYRICS (מילות שירים)',
+        category: 'תצוגה וניווט',
+        rect: [59.3, 31.8, 1.15, 2.8],
+        desc: 'מציג על המסך את מילות השיר (קריוקי/טקסט) או אקורדים המשויכים לקובץ ה-MIDI, ה-MP3 או רשומת ה-SongBook הפעילה.',
+        tip: 'ניתן לטעון גם קובץ טקסט חיצוני (.txt) של מילים ואקורדים לכל שיר ב-SongBook.'
+      },
+      {
+        name: 'כפתור MARKER (סימניות בשיר)',
+        category: 'תצוגה וניווט',
+        rect: [60.8, 31.8, 1.05, 2.8],
+        desc: 'פותח את מסך ה-Markers המאפשר לקפוץ מיד בין חלקי השיר (כגון בית 1, פזמון, גשר) בקובצי MIDI.',
+        tip: 'שימושי כשרוצים לחזור מיד על הפזמון של פלייבק MIDI בזמן אמת.'
+      },
+      {
+        name: 'כפתור SCORE (תצוגת תווים)',
+        category: 'תצוגה וניווט',
+        rect: [62.2, 31.8, 1.05, 2.8],
+        desc: 'ממיר בזמן אמת את ערוצי ה-MIDI של השיר לתצוגת חמשת תווים מקצועית על המסך, כולל שמות אקורדים ומילים.',
+        tip: 'כלי מצוין ללימוד תפקידים מתוך קובצי MIDI.'
+      },
+      {
+        name: 'כפתור MENU (תפריט עריכה)',
+        category: 'ניווט ומערכת',
+        rect: [59.3, 36.8, 1.2, 3.0],
+        desc: 'פותח את תפריט הקטגוריות הפנימי של המצב הפעיל (כגון Mixer/Tuning, Effects, Track Controls, Keyboard/Ensemble, Quarter Tone).',
+        tip: 'טריק מהיר: החזק MENU לחוץ וסובב את גלגלת ה-VALUE כדי לשנות את בהירות המסך!'
+      },
+      {
+        name: 'כפתור EXIT (יציאה / חזרה למסך הראשי)',
+        category: 'ניווט ומערכת',
+        rect: [62.0, 36.8, 1.3, 3.0],
+        desc: 'סוגר תפריטים או חלונות קופצים ומחזיר אותך מיד למסך הראשי (Main Page) של המצב שבו אתה נמצא.',
+        tip: 'בלחיצה אחת מחזיר אותך מכל תפריט עמוק ישירות לתצוגת ההופעה הראשית.'
+      },
+      {
+        name: 'גלגלת ערכים כסופה (VALUE DIAL)',
+        category: 'ניווט ומערכת',
+        rect: [63.8, 29.5, 4.1, 10.5],
+        round: true,
+        desc: 'גלגלת נתונים רציפה לשינוי מהיר של ערכים מספריים במסך, גלילה ברשימות מקצבים וצלילים או שינוי טמפו.',
+        tip: 'החזקת כפתור SHIFT וסיבוב גלגלת ה-VALUE משנים מיד את ה-Tempo מכל מסך שבו אתה נמצא!'
+      },
+      {
+        name: 'כפתור TEMPO - (האטת מהירות)',
+        category: 'בקרת טמפו ומטרונום',
+        rect: [59.3, 42.5, 1.1, 3.0],
+        desc: 'מוריד את מהירות המקצב או הפלייבק (BPM) ביחידה אחת בכל לחיצה.',
+        tip: 'לחיצה על TEMPO - ו-TEMPO + יחד מחזירה את המקצב למהירות ברירת המחדל שלו.'
+      },
+      {
+        name: 'כפתור TEMPO + (האצת מהירות)',
+        category: 'בקרת טמפו ומטרונום',
+        rect: [60.8, 42.5, 1.0, 3.0],
+        desc: 'מעלה את מהירות המקצב או הפלייבק (BPM) ביחידה אחת בכל לחיצה (או במהירות בהחזקה רצופה).',
+        tip: 'שינוי הטמפו עובד גם על קובצי MP3 בזמן אמת בלי לשנות את הסולם שלהם!'
+      },
+      {
+        name: 'כפתור TEMPO LOCK (נעילת מהירות)',
+        category: 'בקרת טמפו ומטרונום',
+        rect: [62.1, 42.5, 1.1, 3.0],
+        desc: 'נועל את המהירות הנוכחית (BPM) כך שגם אם תחליף למקצב אחר, המהירות תישאר קבועה ולא תקפוץ.',
+        tip: 'חובה להדליק כשמנגנים מחרוזת ריקודים ורוצים להחליף מקצבים באותו קצב בדיוק!'
+      },
+      {
+        name: 'כפתור METRONOME (מטרונום)',
+        category: 'בקרת טמפו ומטרונום',
+        rect: [63.5, 42.5, 1.1, 3.0],
+        desc: 'מפעיל או מכבה את נקישות המטרונום לתרגול או להקלטה מדויקת, כולל אפשרות לקביעת משקל ועוצמה במסך.',
+        tip: 'מופעל אוטומטית בעת כניסה להקלטת מקצב חדש ב-Style Record.'
+      },
+      {
+        name: 'כפתור הפעלה / המתנה (POWER / STANDBY)',
+        category: 'הפעלה וחשמל',
+        rect: [71.5, 29.0, 1.5, 4.2],
+        desc: 'מדליק את ה-Pa1000 או מעביר אותה למצב המתנה (Standby) תוך שמירה מסודרת של מצב המערכת.',
+        tip: 'לכיבוי בטוח החזק את הכפתור לחוץ למשך שנייה עד שהמסך מחשיך.'
+      },
+      {
+        name: 'נוב עוצמת מיקרופון/גיטרה (AUDIO IN VOLUME)',
+        category: 'כניסת אודיו ומעבד שירה (TC-Helicon)',
+        rect: [68.3, 35.8, 1.5, 4.4],
+        round: true,
+        desc: 'שולט בעוצמת הכניסה (Volume) של המיקרופון או הגיטרה המחוברים לכניסת ה-Audio In שבגב הכלי.',
+        tip: 'כוון את הנוב כך שנורית ה-LEVEL שלצידו תהבהב בירוק/כתום בעת שירה ולא תיכנס לאדום (Clipping).'
+      },
+      {
+        name: 'נוב אפקטים למיקרופון/גיטרה (AUDIO IN FX)',
+        category: 'כניסת אודיו ומעבד שירה (TC-Helicon)',
+        rect: [71.5, 35.8, 1.5, 4.4],
+        round: true,
+        desc: 'קובע את כמות האפקט (Reverb / Delay / הגברת אפקט שירה או גיטרה) המופעלת על ערוץ המיקרופון או הגיטרה.',
+        tip: 'מאפשר להוסיף או להוריד ריוורב לזמר תוך שנייה בלי להיכנס לתפריטים.'
+      },
+      {
+        name: 'כפתור PRESET (בחירת פריסט שירה/גיטרה)',
+        category: 'כניסת אודיו ומעבד שירה (TC-Helicon)',
+        rect: [68.5, 42.5, 1.05, 3.0],
+        desc: 'פותח על המסך את חלון בחירת הפריסטים של מעבד הקול TC-Helicon או מדמה המגברים לגיטרה.',
+        tip: 'כולל עשרות פריסטים מוכנים לדואטים, מקהלות, הכפלת קול (Double) ואפקטי אולפן.'
+      },
+      {
+        name: 'כפתור MUTE (השתקת מיקרופון/גיטרה)',
+        category: 'כניסת אודיו ומעבד שירה (TC-Helicon)',
+        rect: [70.1, 42.5, 1.05, 3.0],
+        desc: 'משתיק מיד את כניסת המיקרופון או הגיטרה כדי למנוע רעשים או פידבקים בין שירים.',
+        tip: 'נוח במיוחד להשתקה מהירה של המיקרופון ברגע שמפסיקים לשיר.'
+      },
+      {
+        name: 'כפתור HARMONY / DOUBLE (הפעלת הרמונייזר שירה)',
+        category: 'כניסת אודיו ומעבד שירה (TC-Helicon)',
+        rect: [71.6, 42.5, 1.15, 3.0],
+        desc: 'מפעיל או מכבה את קולות הליווי ההרמוניים (TC-Helicon) המתווספים לשירה שלך בזמן אמת לפי האקורדים שאתה מנגן.',
+        tip: 'הפעל אותו בפזמון כדי להכפיל את הקול שלך לצוות זמרים שלם!'
+      },
+      {
+        name: 'כפתור ביטוי מתוכנת 1 (ASSIGNABLE SWITCH 1)',
+        category: 'ביטוי וטכנולוגיית DNC',
+        rect: [5.9, 64.2, 1.2, 3.0],
+        desc: 'כפתור ביטוי ראשון של מערכת DNC (Defined Nuance Control) להפעלת ניואנסים בצלילי סולו (כמו לגטו, פריטת טרמולו או ארטיקולציה בכלי נשיפה).',
+        tip: 'בלשונית DNC במסך ניתן לראות בדיוק מה עושה כפתור 1 עבור הצליל שנבחר כרגע.'
+      },
+      {
+        name: 'כפתור ביטוי מתוכנת 2 (ASSIGNABLE SWITCH 2)',
+        category: 'ביטוי וטכנולוגיית DNC',
+        rect: [7.6, 64.2, 1.2, 3.0],
+        desc: 'כפתור ביטוי שני של מערכת DNC (משמש גם לעיתים קרובות לנעילת רבע טון מהירה או לאפקט משני בצליל הסולו).',
+        tip: 'בחלק מהכפתורים נורית אדומה מציינת מצב נעול (Latch) ונורית כתומה מציינת פעולה בלחיצה בלבד (Momentary).'
+      },
+      {
+        name: 'כפתור ביטוי מתוכנת 3 (ASSIGNABLE SWITCH 3)',
+        category: 'ביטוי וטכנולוגיית DNC',
+        rect: [9.3, 64.2, 1.3, 3.0],
+        desc: 'כפתור ביטוי שלישי של מערכת DNC להפקת ניואנסים חיים או הפעלת פונקציה מוגדרת אישית בזמן נגינה.',
+        tip: 'ניתן להגדיר שאחד הכפתורים יפתח מיד את חלון רובעי הטונים (Quarter Tone) בלחיצה אחת!'
+      },
+      {
+        name: 'ג׳ויסטיק 4 כיוונים (PITCH BEND & MODULATION JOYSTICK)',
+        category: 'שליטה בפיץ׳ וביטוי חי',
+        rect: [5.8, 70.8, 5.2, 11.8],
+        round: true,
+        desc: 'הג׳ויסטיק של Korg: תנועה ימינה/שמאלה מכופפת את גובה הצליל (Pitch Bend), דחיפה למעלה מוסיפה ויברטו/מודולציה (+Y), ומשיכה למטה מפעילה פילטר או אפקט מיוחד (-Y).',
+        tip: 'חיוני לביצוע סלסולים מזרחיים, מתיחות מיתר בכינור וגיטרה והחלקות צליל.'
+      },
+      {
+        name: 'יציאת אוזניות קדמית (HEADPHONES JACK)',
+        category: 'חיבורי שמע',
+        rect: [7.4, 85.0, 2.2, 4.5],
+        desc: 'שקע אוזניות סטריאופוני קדמי נגיש (PL 6.3 מ"מ) לתרגול שקט ומוניטורינג אישי.',
+        tip: 'חיבור אוזניות משתיק אוטומטית את הרמקולים המובנים של האורגנית.'
+      },
+      {
+        name: 'רמקול סטריאו שמאלי (33W Bass-Reflex Speaker - Left)',
+        category: 'מערכת הגברה מובנית',
+        rect: [4.5, 10.5, 18.8, 34.0],
+        desc: 'הרמקול השמאלי במערכת ההגברה הפנימית של ה-Pa1000 (2x33W בתיבת תהודה Bass-Reflex עם וופר 10 ס"מ וטוויטר 2.5 ס"מ).',
+        tip: 'מפיק בס עמוק וצליל נקי וברור לחזרות ולהופעות ביתיות ללא צורך במגבר חיצוני.'
+      },
+      {
+        name: 'רמקול סטריאו ימני (33W Bass-Reflex Speaker - Right)',
+        category: 'מערכת הגברה מובנית',
+        rect: [75.5, 10.5, 18.8, 34.0],
+        desc: 'הרמקול הימני במערכת ההגברה הכפולה של ה-Pa1000 (2x33W), המעניק הפרדת סטריאו רחבה וברורה.',
+        tip: 'ניתן לכבות או להדליק את הרמקולים מתוך תפריט Global -> Audio & Video.'
+      },
+      {
+        name: 'מקלדת 61 קלידים חצי-שקולים (Semi-Weighted Keyboard + Aftertouch)',
+        category: 'מקלדת ורגישות מגע',
+        rect: [13.3, 60.0, 79.1, 32.2],
+        desc: 'מקלדת מקצועית בת 61 קלידים (5 אוקטבות, C2–C7) בעלת מגע חצי-שקול, תגובה מדויקת לעוצמת הלחיצה והשחרור (Velocity) ותמיכה ב-Aftertouch.',
+        tip: 'לחיצה נוספת על הקליד כשהוא כבר למטה (Aftertouch) מכניסה ויברטו ורגש לצלילי סולו גם כשיד שמאל מנגנת אקורדים!'
+      }
+    ];
+
+    const rearButtonsData = [
+      {
+        name: 'חריץ שמאלי למעמד תווים (Left Music Stand Slot)',
+        category: 'גוף הכלי ואביזרים',
+        rect: [28.2, 20.5, 1.5, 7.5],
+        round: true,
+        desc: 'חור עגינה ייעודי בצד שמאל להכנסת הזרוע השמאלית של מעמד התווים המקורי המגיע עם ה-Korg Pa1000.',
+        tip: 'ודא ששתי זרועות מעמד התווים מוכנסות עד הסוף לפני הנחת קלסר או טאבלט.'
+      },
+      {
+        name: 'חריץ ימני למעמד תווים (Right Music Stand Slot)',
+        category: 'גוף הכלי ואביזרים',
+        rect: [68.6, 20.5, 1.5, 7.5],
+        round: true,
+        desc: 'חור עגינה ייעודי בצד ימין להכנסת הזרוע הימנית של מעמד התווים המקורי.',
+        tip: 'המעמד בנוי בזווית שמשאירה מרווח בטוח להטיית מסך ה-TouchView כלפי מעלה.'
+      },
+      {
+        name: 'חריץ כרטיס זיכרון פנימי (MicroSD Slot)',
+        category: 'אחסון וגיבוי פנימי',
+        rect: [34.5, 28.0, 3.5, 11.5],
+        desc: 'תא מוגן בבורג המאכלס חריץ לכרטיס MicroSD (עד 32GB בתקן microSDHC מפורמט ב-FAT32). משמש ככונן אחסון פנימי קבוע לשמירת עשרות סטים שלמים (SET), דגימות ושירי MIDI/MP3.',
+        tip: 'חובה לכבות את האורגנית ולנתק את כבל החשמל לפני פתיחת המכסה והכנסת/שליפת הכרטיס, כדי למנוע השחתת נתונים.'
+      },
+      {
+        name: 'יציאת וידאו לחיבור מסך חיצוני (VIDEO OUT - HDMI)',
+        category: 'וידאו ותצוגה חיצונית',
+        rect: [38.1, 31.0, 1.7, 9.5],
+        desc: 'יציאת וידאו דיגיטלית המאפשרת לחבר את ה-Pa1000 ישירות לטלוויזיה, מוניטור או מקרן חיצוני כדי להציג את מילות השירים (Lyrics) או את כל מסך האורגנית.',
+        tip: 'בתפריט Global -> Audio & Video תוכל לבחור אם להציג במסך החיצוני רק את המילים לזמר או לשכפל את המסך המלא (Mirror).'
+      },
+      {
+        name: 'חיבור USB למחשב (USB DEVICE - Type B)',
+        category: 'חיבורי USB ו-MIDI',
+        rect: [41.2, 31.0, 1.5, 9.5],
+        desc: 'שקע USB מרובע (Type-B) לחיבור ישיר בין האורגנית למחשב באמצעות כבל מדפסת סטנדרטי. משמש להעברת MIDI דו-כיוונית (לתוכנות DAW כמו FL Studio או Cubase) ולגישה לקבצי האורגנית מהמחשב.',
+        tip: 'חיבור כבל אחד מכאן למחשב מאפשר להשתמש ב-Pa1000 כמקלדת שליטה ב-FL Studio וגם לשלוח ערוצי MIDI חזרה לאורגנית!'
+      },
+      {
+        name: 'כניסת USB אחורית (USB HOST - Type A)',
+        category: 'חיבורי USB ואחסון',
+        rect: [44.0, 31.0, 1.8, 9.5],
+        desc: 'כניסת USB 2.0 אחורית (בנוסף לכניסה הקדמית) לחיבור דיסק-און-קי קבוע, קורא כרטיסים, או חיבור מקלדת שליטה/בקר USB MIDI חיצוני.',
+        tip: 'מומלץ לחבר לכאן דיסק-און-קי קטן (Nano USB) שיישאר קבוע לגיבויים בלי לבלוט בחזית הכלי.'
+      },
+      {
+        name: 'כניסת פדל מתוכנת / ווליום (PEDAL - ASSIGNABLE)',
+        category: 'פדלים ובקרי רגל',
+        rect: [47.2, 31.5, 1.5, 9.0],
+        round: true,
+        desc: 'שקע PL 6.3 מ"מ לחיבור פדל הבעה/ווליום רציף (כמו Korg EXP-2 / XVP-20) או פדל מתג (Footswitch) להפעלת פונקציות ברגל.',
+        tip: 'ניתן לתכנת את הפדל בתפריט Global כך שלחיצה ברגל תחליף וריאציה, תפעיל Fill או תנעל רבע טון בזמן ששתי הידיים מנגנות!'
+      },
+      {
+        name: 'כניסת פדל ססטיין (PEDAL - DAMPER)',
+        category: 'פדלים ובקרי רגל',
+        rect: [49.1, 31.5, 1.5, 9.0],
+        round: true,
+        desc: 'שקע PL 6.3 מ"מ לחיבור פדל השהיה (Sustain / Damper). תומך גם בפדל חצי-לחיצה (Half-Pedaling עם פדל Korg DS-1H) לנגינת פסנתר מדויקת.',
+        tip: 'אם הפדל עובד הפוך (משהה כשלא לוחצים), שנה את הקוטביות (Polarity) בתפריט Global -> Controllers -> Foot.'
+      },
+      {
+        name: 'יציאת מידי (MIDI OUT - 5 Pin DIN)',
+        category: 'חיבורי MIDI',
+        rect: [50.9, 31.5, 1.9, 11.0],
+        round: true,
+        desc: 'יציאת MIDI סטנדרטית (5 פינים) לשליחת פקודות תווים, אקורדים, שעון קצב (MIDI Clock) והחלפת צלילים למודול סאונד או למקלדת שנייה.',
+        tip: 'מאפשר לסנכרן מכונת תופים או סינתיסייזר חיצוני בדיוק למהירות המקצב של ה-Pa1000.'
+      },
+      {
+        name: 'כניסת מידי (MIDI IN - 5 Pin DIN)',
+        category: 'חיבורי MIDI',
+        rect: [52.9, 31.5, 1.9, 11.0],
+        round: true,
+        desc: 'כניסת MIDI סטנדרטית (5 פינים) לקבלת תווים ופקודות ממקלדת שליטה חיצונית, פסנתר חשמלי של 88 קלידים או אקורדיון MIDI.',
+        tip: 'ניתן לחבר מקלדת תחתונה של 88 קלידים ל-MIDI IN ולנגן דרכה את צליל הפסנתר של ה-Pa1000 בזמן שעל ה-Pa1000 מנגנים סולו!'
+      },
+      {
+        name: 'יציאת שמע ראשית - צד ימין (AUDIO OUT - RIGHT)',
+        category: 'יציאות שמע (Audio Out)',
+        rect: [55.3, 31.5, 1.5, 9.0],
+        round: true,
+        desc: 'יציאת שמע מאוזנת/לא-מאוזנת (PL 6.3 מ"מ) של ערוץ ימין (Right) לחיבור למיקסר, מערכת הגברה (PA) או כרטיס קול בסטריאו.',
+        tip: 'לסאונד סטריאו רחב ומלא בהופעות או בהקלטות, חבר תמיד את שתי היציאות (Right ו-Left) לשני ערוצים במיקסר.'
+      },
+      {
+        name: 'יציאת שמע ראשית - שמאל / מונו (AUDIO OUT - LEFT / MONO)',
+        category: 'יציאות שמע (Audio Out)',
+        rect: [57.0, 31.5, 1.5, 9.0],
+        round: true,
+        desc: 'יציאת שמע PL 6.3 מ"מ של ערוץ שמאל. אם מחברים כבל אחד בלבד ליציאה זו (מבלי לחבר ל-Right), האורגנית מאחדת אוטומטית את השמע ליציאת מונו (Mono).',
+        tip: 'כשאתה מתחבר למגבר בודד עם כבל אחד בלבד, הקפד להתחבר לשקע LEFT כדי לא לאבד את צד ימין של הסטריאו!'
+      },
+      {
+        name: 'כניסת שמע - צד ימין (AUDIO IN - RIGHT)',
+        category: 'כניסות שמע (Audio In)',
+        rect: [58.9, 31.5, 1.5, 9.0],
+        round: true,
+        desc: 'כניסת שמע (PL 6.3 מ"מ) לערוץ ימין, המשמשת לחיבור מקור אודיו חיצוני בסטריאו (כמו נגן חיצוני, טלפון, מקלדת נוספת או מיקסר משני).',
+        tip: 'השמע שנכנס דרך Audio In מתנגן ישירות דרך הרמקולים המובנים של ה-Pa1000 ויוצא גם ב-Audio Out.'
+      },
+      {
+        name: 'כניסת שמע - שמאל / מיקרופון / גיטרה (AUDIO IN - LEFT)',
+        category: 'כניסות שמע ומעבד TC-Helicon',
+        rect: [60.6, 31.5, 1.5, 9.0],
+        round: true,
+        desc: 'כניסת PL 6.3 מ"מ רב-תכליתית: משמשת ככניסת מונו למיקרופון דינמי (עבור הרמונייזר השירה TC-Helicon), כניסה ישירה לגיטרה חשמלית/אקוסטית (עם אפקטי גיטרה מובנים), או ערוץ שמאל של כניסת Line.',
+        tip: 'הגדר בתפריט Audio In אם חיברת לכאן מיקרופון (Mic), גיטרה (Guitar) או מקור שמע (Line) כדי להתאים את קדם-המגבר.'
+      },
+      {
+        name: 'גלגלת רגישות כניסה (MIC / LINE GAIN)',
+        category: 'כניסות שמע ומעבד TC-Helicon',
+        rect: [62.1, 32.0, 1.4, 8.5],
+        round: true,
+        desc: 'נוב כוונון רגישות הקדם-מגבר (Preamp Gain) עבור כניסת המיקרופון או הגיטרה ב-Audio In.',
+        tip: 'כוון את ה-Gain כאן מאחור כך שבשירה חזקה נורית ה-Level בפאנל הקדמי תישאר ירוקה/כתומה ולא תגיע לאדום.'
+      },
+      {
+        name: 'שקע כניסת חשמל ראשי (AC IN ~ 100-240V)',
+        category: 'חשמל והזנה',
+        rect: [51.6, 57.5, 4.1, 14.5],
+        desc: 'שקע חיבור כבל החשמל התלת-פיני (כבל קומקום סטנדרטי). ל-Pa1000 ספק כוח פנימי אוניברסלי מובנה, כך שאין צורך בשנאי חיצוני כבד על הרצפה.',
+        tip: 'צריכת החשמל החסכונית והספק הפנימי הופכים את ההקמה בהופעות למהירה ונקייה מכבלים מיותרים.'
+      },
+      {
+        name: 'פתח תהודה אחורי שמאלי (Bass-Reflex Port - Left)',
+        category: 'אקוסטיקה ומבנה',
+        rect: [36.3, 57.5, 4.2, 16.0],
+        desc: 'פתח יציאת אוויר אחורי של תיבת התהודה (Bass-Reflex) של מערכת הרמקולים המובנית, המעניק נפח ותדרים נמוכים עמוקים.',
+        tip: 'מומלץ לא להצמיד את גב האורגנית עד הסוף לקיר כדי לאפשר לפתחי ה-Bass-Reflex להפיק בס פתוח ונקי.'
+      },
+      {
+        name: 'פתח תהודה אחורי ימני (Bass-Reflex Port - Right)',
+        category: 'אקוסטיקה ומבנה',
+        rect: [57.6, 57.5, 4.3, 16.0],
+        desc: 'פתח יציאת אוויר אחורי שני של תיבת התהודה של הרמקולים המובנים, המשלים את פיזור הבס של הכלי.',
+        tip: 'השקעים משמשים גם כנקודות אחיזה נוחות ובטוחות בעת הרמת האורגנית והנחתה על הסטנד.'
+      }
+    ];
+
+    const keyboardImg = document.getElementById('pa1000-img');
+    const subtitleText = document.getElementById('subtitle-text');
+    const hotspotLayer = document.getElementById('hotspot-layer');
+    const btnViewFront = document.getElementById('btn-view-front');
+    const btnViewRear = document.getElementById('btn-view-rear');
+
+    const modalOverlay = document.getElementById('info-modal');
+    const modalCloseBtn = document.getElementById('modal-close-btn');
+    const modalBadge = document.getElementById('modal-badge');
+    const modalTitle = document.getElementById('modal-title');
+    const modalDesc = document.getElementById('modal-desc');
+    const modalTip = document.getElementById('modal-tip');
+
+    function switchView(viewKey) {
+      const cfg = viewsConfig[viewKey];
+
+      btnViewFront.classList.toggle('active', viewKey === 'front');
+      btnViewFront.setAttribute('aria-selected', viewKey === 'front');
+      btnViewRear.classList.toggle('active', viewKey === 'rear');
+      btnViewRear.setAttribute('aria-selected', viewKey === 'rear');
+
+      subtitleText.textContent = cfg.subtitle;
+      keyboardImg.dataset.fallback = '';
+      keyboardImg.onerror = function () {
+        if (!this.dataset.fallback) {
+          this.dataset.fallback = '1';
+          this.src = cfg.fallbackSrc;
+        }
+      };
+      keyboardImg.src = cfg.primarySrc;
+
+      renderHotspots(viewKey === 'front' ? frontButtonsData : rearButtonsData);
+    }
+
+    function renderHotspots(dataArray) {
+      hotspotLayer.innerHTML = '';
+
+      dataArray.forEach((btn) => {
+        const [left, top, width, height] = btn.rect;
+        const spot = document.createElement('div');
+        spot.className = 'hotspot' + (btn.round ? ' round' : '');
+        spot.style.left = left + '%';
+        spot.style.top = top + '%';
+        spot.style.width = width + '%';
+        spot.style.height = height + '%';
+        spot.setAttribute('role', 'button');
+        spot.setAttribute('tabindex', '0');
+        spot.setAttribute('aria-label', btn.name);
+
+        const tooltip = document.createElement('span');
+        tooltip.className = 'hotspot-tooltip';
+        tooltip.textContent = btn.name;
+        spot.appendChild(tooltip);
+
+        spot.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openModal(btn);
+        });
+
+        spot.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openModal(btn);
+          }
+        });
+
+        hotspotLayer.appendChild(spot);
+      });
+    }
+
+    function openModal(btn) {
+      modalBadge.textContent = btn.category;
+      modalTitle.textContent = btn.name;
+      modalDesc.textContent = btn.desc;
+      modalTip.textContent = btn.tip;
+      modalOverlay.classList.add('open');
+    }
+
+    function closeModal() {
+      modalOverlay.classList.remove('open');
+    }
+
+    btnViewFront.addEventListener('click', () => switchView('front'));
+    btnViewRear.addEventListener('click', () => switchView('rear'));
+
+    modalCloseBtn.addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modalOverlay.classList.contains('open')) {
+        closeModal();
+      }
+    });
+
+    switchView('front');
+  </script>
+</body>
+</html>
